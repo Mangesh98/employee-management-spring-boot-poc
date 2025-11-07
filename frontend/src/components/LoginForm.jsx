@@ -152,7 +152,7 @@ const LoginForm = () => {
         {/* Footer */}
         <div className="mt-8 text-center">
           <p className="text-sm text-gray-600">
-            Protected by Spring Security 🔒
+            Protected by JWT Authentication 🔒
           </p>
         </div>
       </div>

@@ -3,7 +3,6 @@ import { createContext, useState, useContext, useEffect } from 'react';
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
-  // Start with null to force explicit authentication check
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -18,27 +17,43 @@ export const AuthProvider = ({ children }) => {
 
   const checkAuthStatus = async () => {
     try {
-      const response = await fetch(`${API_URL}/employees`, {
+      const token = localStorage.getItem('token');
+      
+      if (!token) {
+        setIsAuthenticated(false);
+        setUser(null);
+        setAuthChecked(true);
+        setLoading(false);
+        return;
+      }
+
+      console.log('Verifying stored token...');
+      
+      // Verify token with backend
+      const response = await fetch(`${API_URL}/api/auth/verify`, {
         method: 'GET',
-        credentials: 'include', // Important: include cookies
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        redirect: 'manual', // Don't follow redirects automatically
       });
 
-      // Status 200 means authenticated
-      if (response.ok && response.status === 200) {
+      if (response.ok) {
+        console.log('Token is valid');
+        const userData = JSON.parse(localStorage.getItem('user'));
         setIsAuthenticated(true);
-        setUser({ username: 'User' }); // Placeholder
+        setUser(userData);
       } else {
-        // Any other status (302 redirect, 401, 403) means not authenticated
+        console.log('Token is invalid or expired');
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
         setIsAuthenticated(false);
         setUser(null);
       }
     } catch (error) {
-      // If backend is not running or network error, treat as not authenticated
       console.error('Auth check failed:', error);
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       setIsAuthenticated(false);
       setUser(null);
     } finally {
@@ -49,45 +64,62 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      // Create form data for Spring Security login
-      const formData = new URLSearchParams();
-      formData.append('username', username);
-      formData.append('password', password);
-
-      const response = await fetch(`${API_URL}/login`, {
+      console.log('Attempting login for user:', username);
+      
+      const response = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
-        credentials: 'include', // Important: include cookies
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
+          'Content-Type': 'application/json',
         },
-        body: formData.toString(),
+        body: JSON.stringify({ username, password }),
       });
 
-      if (response.ok) {
+      const data = await response.json();
+      console.log('Login response:', data);
+
+      if (response.ok && data.success && data.token) {
+        // Store token and user info
+        localStorage.setItem('token', data.token);
+        localStorage.setItem('user', JSON.stringify({
+          username: data.username,
+          role: data.role
+        }));
+
         setIsAuthenticated(true);
-        setUser({ username });
+        setUser({ username: data.username, role: data.role });
+        
+        console.log('Login successful');
         return { success: true };
       } else {
-        return { success: false, error: 'Invalid username or password' };
+        console.error('Login failed:', data.message);
+        return { success: false, error: data.message || 'Login failed' };
       }
     } catch (error) {
-      console.error('Login failed:', error);
-      return { success: false, error: 'Login failed. Please try again.' };
+      console.error('Login error:', error);
+      return { success: false, error: 'Login failed. Please check if the server is running.' };
     }
   };
 
   const logout = async () => {
     try {
-      await fetch(`${API_URL}/logout`, {
-        method: 'POST',
-        credentials: 'include', // Important: include cookies
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
+      const token = localStorage.getItem('token');
+      
+      if (token) {
+        await fetch(`${API_URL}/api/auth/logout`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+      }
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
+      // Clear local storage
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      
       setIsAuthenticated(false);
       setUser(null);
     }

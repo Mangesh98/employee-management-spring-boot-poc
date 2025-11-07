@@ -16,6 +16,15 @@ const EmployeeManagement = () => {
 
   const API_URL = 'http://localhost:8081/employees';
 
+  // Helper function to get auth headers
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('token');
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` }),
+    };
+  };
+
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -24,19 +33,26 @@ const EmployeeManagement = () => {
     setLoading(true);
     try {
       const response = await fetch(API_URL, {
-        credentials: 'include', // Include cookies for authentication
+        method: 'GET',
+        headers: getAuthHeaders(),
       });
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Fetched employees:', data);
         setEmployees(data);
         setFilteredEmployees(data);
-      } else if (response.status === 401) {
+      } else if (response.status === 401 || response.status === 403) {
+        console.error('Authentication failed:', response.status);
         showNotification('Session expired. Please login again.', 'error');
-        logout();
+        setTimeout(() => logout(), 1500);
+      } else {
+        console.error('Failed to fetch employees:', response.status);
+        showNotification(`Failed to fetch employees (Status: ${response.status})`, 'error');
       }
     } catch (error) {
-      showNotification('Failed to fetch employees', 'error');
       console.error('Error fetching employees:', error);
+      showNotification('Failed to fetch employees. Please check if the server is running.', 'error');
     } finally {
       setLoading(false);
     }
@@ -50,7 +66,7 @@ const EmployeeManagement = () => {
 
     try {
       const response = await fetch(`${API_URL}/search?name=${encodeURIComponent(searchTerm)}`, {
-        credentials: 'include', // Include cookies for authentication
+        headers: getAuthHeaders(),
       });
       if (response.ok) {
         const data = await response.json();
@@ -74,10 +90,7 @@ const EmployeeManagement = () => {
       
       const response = await fetch(url, {
         method,
-        credentials: 'include', // Include cookies for authentication
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: getAuthHeaders(),
         body: JSON.stringify(employeeData),
       });
 
