@@ -34,3 +34,5 @@ build/
 /docker-compose.yml
 !**/src/main/resources/application.properties
 /src/main/resources/application.properties
+backend/docker-compose.yml
+.DS_Store
